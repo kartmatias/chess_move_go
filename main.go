@@ -15,6 +15,8 @@ func main() {
 
 	serveMux := http.NewServeMux()
 	serveMux.Handle("/home", &controller.HomeHandler{})
+	serveMux.Handle("/knight", &controller.KnightHandler{})
+	serveMux.Handle("/knight/", &controller.KnightHandler{})
 	http.ListenAndServe(":"+port, serveMux)
 
 }
