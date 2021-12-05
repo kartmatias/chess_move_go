@@ -8,6 +8,6 @@ type Position struct {
 }
 
 type PositionStore struct {
-	m map[string]Position
+	List map[string]Position
 	*sync.RWMutex
 }
