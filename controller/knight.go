@@ -4,20 +4,26 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/kartmatias/chess_move_go/model"
-	"github.com/kartmatias/chess_move_go/service"
+	"math"
 	"net/http"
 	"regexp"
+	"strconv"
+	"strings"
 )
 
 type KnightHandler struct {
 	Store *model.PositionStore
 }
 
+type coordinate struct {
+	x int
+	y int
+}
+
 var (
 	//https://regex101.com/
 	getRequest = regexp.MustCompile(`^\/knight\/[a-h][1-8]$`)
 	listRequest = regexp.MustCompile(`\/knight[\/]*$`)
-	validPos = regexp.MustCompile(`(?m)[a-h][1-8]$`)
 )
 
 
@@ -36,22 +42,36 @@ func (h *KnightHandler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 }
 
 func (h *KnightHandler) Get(w http.ResponseWriter, r *http.Request)  {
-	matches := getRequest.FindStringSubmatch(r.URL.Path)
 
-	for i, match := range getRequest.FindAllString(r.URL.Path, -1) {
-		fmt.Println(match, "found at index", i)
-	}
+	position := strings.ReplaceAll(getRequest.FindString(r.URL.Path), "/knight/", "")
 
-	if len(matches) < 1 {
-		http.NotFound(w, r)
+	if !IsValidPosition(position) {
+		ReturnError(w, http.StatusInternalServerError, "INVALID POSITION")
 		return
 	}
 
-	fmt.Fprintf(w, "GERANDO MOVIMENTOS....: %v\n", matches)
-
+	fmt.Println(position)
 	h.generate()
 
-	fmt.Fprintf(w, "OK: %v\n", matches)
+	h.Store.RLock()
+	positions := make([]model.Position, 0, len(h.Store.List))
+
+	for _, value := range h.Store.List {
+		if isValidMove(position, value.ID) {
+			positions = append(positions, value)
+		}
+	}
+
+	h.Store.RUnlock()
+	jbytes, err := json.Marshal(positions)
+
+	if err != nil {
+		ReturnError(w, http.StatusInternalServerError, "Error when listing")
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(jbytes)
+
 }
 
 func (h *KnightHandler) Post(w http.ResponseWriter, r *http.Request)  {
@@ -61,10 +81,8 @@ func (h *KnightHandler) Post(w http.ResponseWriter, r *http.Request)  {
 		ReturnError(w, http.StatusInternalServerError, "EMPTY BODY")
 	}
 
-	matches := validPos.FindStringSubmatch(p.ID)
-
-	if len(matches) < 1 {
-		http.NotFound(w, r)
+	if !IsValidPosition(p.ID) {
+		ReturnError(w, http.StatusInternalServerError, "INVALID POSITION")
 		return
 	}
 
@@ -104,13 +122,81 @@ func (h *KnightHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *KnightHandler) generate() {
-	lista := service.GenerateValidPositions()
 
-	for _, position := range lista {
+	if len(h.Store.List) != 0 {
+		return
+	}
+
+	list := GenerateValidPositions()
+	for _, position := range list {
 		h.Store.Lock()
 		h.Store.List[position.ID] = position
 		h.Store.Unlock()
 	}
+}
+
+func GetX(pos string) int {
+	return int(CharCodeAt(pos, 0) - 96)
+}
+
+func GetY(pos string) int {
+	y, err := strconv.Atoi( Substr(pos,1,1) )
+	if err != nil {
+		return 0
+	}
+	return y
+}
+
+func IsValidPosition(position string) bool {
+	var validPos = regexp.MustCompile(`(?m)[a-h][1-8]$`)
+	matches := validPos.FindStringSubmatch(position)
+	if len(matches) < 1 {
+		return false
+	}
+	return true
+}
+
+func (h *KnightHandler) ValidMoves(w http.ResponseWriter, r *http.Request) {
+
+	h.Store.RLock()
+	positions := make([]model.Position, 0, len(h.Store.List))
+
+	for _, value := range h.Store.List {
+		if isValidMove("a1", "a2") {
+			positions = append(positions, value)
+		}
+	}
+
+	h.Store.RUnlock()
+	jbytes, err := json.Marshal(positions)
+
+	if err != nil {
+		ReturnError(w, http.StatusInternalServerError, "Error when listing")
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(jbytes)
 
 }
 
+func isValidMove(origin string, destination string) bool {
+	var p1 = coordinate{x: GetX(origin), y: GetY(origin)}
+	var p2 = coordinate{x: GetX(destination), y: GetY(destination)}
+
+	return (math.Abs(float64(p2.x - p1.x)) == 1) &&
+		(math.Abs(float64(p2.y - p1.y)) == 2) ||
+		(math.Abs(float64(p2.x - p1.x)) == 2) &&
+			(math.Abs(float64(p2.y - p1.y)) == 1)
+
+}
+
+func GenerateValidPositions() []model.Position {
+	positions := make([]model.Position, 0, 63)
+	for i := 1; i < 9; i++ {
+		for j := 1; j < 9; j++ {
+			strPos := string(96 + i) + strconv.Itoa(j)
+			positions = append(positions,model.Position{ID: strPos, Position: strPos})
+		}
+	}
+	return positions
+}
