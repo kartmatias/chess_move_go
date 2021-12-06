@@ -3,6 +3,9 @@ chess valid move (only for knight move)
 
 go run main
 
+## if need change default port
+export CHESS_PORT=8080
+
 ## to get a valid moves list
 curl http://localhost:8080/knight/c2
 
