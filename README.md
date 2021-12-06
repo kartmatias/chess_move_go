@@ -1,8 +1,17 @@
 # chess_move_go
-chess move algorithms
+chess valid move (only for knight move)
 
+go run main
 
-## position history
+## to get a valid moves list
+curl http://localhost:8080/knight/c2
+
+## to list all table positions
 curl http://localhost:8080/knight/
-## save position used
+
+## save a position (if not exists)
 curl -X POST -H 'content-type: application/json' --data '{"id":"a2","position":"a2"}'  http://localhost:8080/knight/
+
+
+## to run in docker
+...
